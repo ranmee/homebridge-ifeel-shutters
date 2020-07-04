@@ -95,18 +95,22 @@ export class IFeelShutter {
   handlePositionStateGet(callback) {
     this.platform.log.debug('Triggered GET PositionState');
 
-    let currentValue;
-    if (this.state.currentPosition > this.state.targetPosition) {
-      // The shutter is: Decreasing.
-      currentValue = 0;
-    } else if (this.state.currentPosition < this.state.targetPosition) {
-      // The shutter is: Increasing.
-      currentValue = 1;
-    } else {
-      // The shutter is: Stopped. Both target and current possitions are the same.
-      currentValue = 2;
-    }
+    this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+      this.state.currentPosition = position;
+      
+      let currentValue;
+      if (this.state.currentPosition > this.state.targetPosition) {
+        // The shutter is: Decreasing.
+        currentValue = 0;
+      } else if (this.state.currentPosition < this.state.targetPosition) {
+        // The shutter is: Increasing.
+        currentValue = 1;
+      } else {
+        // The shutter is: Stopped. Both target and current possitions are the same.
+        currentValue = 2;
+      }
 
-    callback(null, currentValue);
+      callback(null, currentValue);
+    });
   }
 }

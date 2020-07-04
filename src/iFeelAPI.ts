@@ -72,4 +72,24 @@ export class IFeelAPI {
     const response = await this.api.post('units/action', data, this.getRequestConfig());
     this.logger.info(`Got unit action response of ${response.status}`);
   }
+
+  public async getShutterPosition(id: number) {
+    const params = {
+      id: id,
+    };
+
+    this.logger.info(`Getting unit data for i-feel shutter. id ${id}`);
+    const response = await this.api.get('units/getUnitByID', this.getRequestConfig(params));
+    this.logger.info(`Got unit data response of ${response.status}`);
+
+    return response.data['currStatus'];
+  }
+
+  public async getShuttersData() {
+    this.logger.info('Getting ALL units data from i-feel hub.');
+    const response = await this.api.get('units/listUnits', this.getRequestConfig());
+    this.logger.info(`Got ALL units data response of ${response.status}`);
+
+    return response.data;
+  }
 }

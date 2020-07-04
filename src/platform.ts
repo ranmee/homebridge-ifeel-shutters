@@ -12,13 +12,15 @@ import { IFeelAPI } from './iFeelAPI';
 export class IFeelPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
-  private readonly iFeelApi: IFeelAPI;
   private readonly hubIP: string;
   private readonly email: string;
   private readonly password: string;
-
+  private readonly authenticationInterval: number = 1000 * 60 * 25;
+  
+  
   // this is used to track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
+  public readonly iFeelApi: IFeelAPI;
 
   constructor(
     public readonly log: Logger,
@@ -43,9 +45,12 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
       this.iFeelApi.authenticate().then(() => {
         // run the method to discover / register your devices as accessories
         this.discoverDevices();
-
-        this.iFeelApi.postShutterAction(4, 50);
       });
+
+      // Re-authenticate every <authenticationInterval> to keep us logged in.
+      setInterval(() => {
+        this.iFeelApi.authenticate();
+      }, this.authenticationInterval);
     });
   }
 
@@ -66,63 +71,68 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
    * must not be registered again to prevent "duplicate UUID" errors.
    */
   discoverDevices() {
+    this.iFeelApi.getShuttersData().then(data => {
+      const devices = data.map(unitData => {
+        return {id: unitData.id, displayName: unitData.name};
+      });
+      
+      // loop over the discovered devices and register each one if it has not already been registered
+      for (const device of devices) {
 
-    // EXAMPLE ONLY
-    // A real plugin you would discover accessories from the local network, cloud services
-    // or a user-defined array in the platform config.
+        // generate a unique id for the accessory this should be generated from
+        // something globally unique, but constant, for example, the device serial
+        // number or MAC address
+        const uuid = this.api.hap.uuid.generate(device.id.toString());
+
+        // see if an accessory with the same uuid has already been registered and restored from
+        // the cached devices we stored in the `configureAccessory` method above
+        const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+
+        if (existingAccessory) {
+          // the accessory already exists
+          this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+
+          // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
+          // existingAccessory.context.device = device;
+          // this.api.updatePlatformAccessories([existingAccessory]);
+
+          // create the accessory handler for the restored accessory
+          // this is imported from `platformAccessory.ts`
+          new IFeelShutter(this, existingAccessory, device.id);
+
+        } else {
+          // the accessory does not yet exist, so we need to create it
+          this.log.info('Adding new accessory:', device.displayName);
+
+          // create a new accessory
+          const accessory = new this.api.platformAccessory(device.displayName, uuid);
+
+          // store a copy of the device object in the `accessory.context`
+          // the `context` property can be used to store any data about the accessory you may need
+          accessory.context.device = device;
+
+          // create the accessory handler for the newly create accessory
+          // this is imported from `platformAccessory.ts`
+          new IFeelShutter(this, accessory, device.id);
+
+          // link the accessory to your platform
+          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        }
+
+        // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
+        // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      }
+    });
+
+
     const exampleDevices = [
       {
-        id: '4',
+        id: 4,
         displayName: 'Clementine Shutter',
       },
     ];
 
-    // loop over the discovered devices and register each one if it has not already been registered
-    for (const device of exampleDevices) {
-
-      // generate a unique id for the accessory this should be generated from
-      // something globally unique, but constant, for example, the device serial
-      // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.id);
-
-      // see if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
-
-      if (existingAccessory) {
-        // the accessory already exists
-        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-        // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
-
-        // create the accessory handler for the restored accessory
-        // this is imported from `platformAccessory.ts`
-        new IFeelShutter(this, existingAccessory);
-
-      } else {
-        // the accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', device.displayName);
-
-        // create a new accessory
-        const accessory = new this.api.platformAccessory(device.displayName, uuid);
-
-        // store a copy of the device object in the `accessory.context`
-        // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = device;
-
-        // create the accessory handler for the newly create accessory
-        // this is imported from `platformAccessory.ts`
-        new IFeelShutter(this, accessory);
-
-        // link the accessory to your platform
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      }
-
-      // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
-      // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-    }
+    
 
   }
 }

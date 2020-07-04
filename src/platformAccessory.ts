@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, CharacteristicValue, CharacteristicSetCallback, CharacteristicGetCallback } from 'homebridge';
+import { Service, PlatformAccessory } from 'homebridge';
 
 import { IFeelPlatform } from './platform';
 
@@ -10,18 +10,16 @@ import { IFeelPlatform } from './platform';
 export class IFeelShutter {
   private service: Service;
 
-  /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
-   */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
+  // Shutter state object.
+  private state = {
+    targetPosition: 0,
+    currentPosition: 0,
   }
 
   constructor(
     private readonly platform: IFeelPlatform,
     private readonly accessory: PlatformAccessory,
+    private readonly shutterId: number,
   ) {
 
     // set accessory information
@@ -30,9 +28,9 @@ export class IFeelShutter {
       .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
 
-    // get the LightBulb service if it exists, otherwise create a new LightBulb service
+    // get the WindowCovering service if it exists, otherwise create a new LightBulb service
     // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+    this.service = this.accessory.getService(this.platform.Service.WindowCovering) || this.accessory.addService(this.platform.Service.WindowCovering);
 
     // To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
     // when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
@@ -40,91 +38,75 @@ export class IFeelShutter {
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.displayName);
 
     // each service must implement at-minimum the "required characteristics" for the given service type
     // see https://developers.homebridge.io/#/service/Lightbulb
 
-    // register handlers for the On/Off Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.On)
-      .on('set', this.setOn.bind(this))                // SET - bind to the `setOn` method below
-      .on('get', this.getOn.bind(this));               // GET - bind to the `getOn` method below
+    // create handlers for required characteristics.
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentPosition)
+      .on('get', this.handleCurrentPositionGet.bind(this));
 
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .on('set', this.setBrightness.bind(this));       // SET - bind to the 'setBrightness` method below
+    this.service.getCharacteristic(this.platform.Characteristic.TargetPosition)
+      .on('get', this.handleTargetPositionGet.bind(this))
+      .on('set', this.handleTargetPositionSet.bind(this));
 
-    // EXAMPLE ONLY
-    // Example showing how to update the state of a Characteristic asynchronously instead
-    // of using the `on('get')` handlers.
-    //
-    // Here we change update the brightness to a random value every 5 seconds using 
-    // the `updateCharacteristic` method.
-    setInterval(() => {
-      // assign the current brightness a random value between 0 and 100
-      const currentBrightness = Math.floor(Math.random() * 100);
-
-      // push the new value to HomeKit`
-      this.service.updateCharacteristic(this.platform.Characteristic.Brightness, currentBrightness);
-
-      this.platform.log.debug('Pushed updated current Brightness state to HomeKit:', currentBrightness);
-    }, 10000);
+    this.service.getCharacteristic(this.platform.Characteristic.PositionState)
+      .on('get', this.handlePositionStateGet.bind(this));
   }
 
   /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
+   * Handle requests to get the current value of the "Current Position" characteristic
    */
-  setOn(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+  handleCurrentPositionGet(callback) {
+    this.platform.log.debug('Triggered GET CurrentPosition');
 
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
+    this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+      this.state.currentPosition = position;
+      callback(null, position);
+    });
+  }
 
-    this.platform.log.debug('Set Characteristic On ->', value);
+  /**
+   * Handle requests to get the current value of the "Target Position" characteristic
+   */
+  handleTargetPositionGet(callback) {
+    this.platform.log.debug('Triggered GET TargetPosition');
+    callback(null, this.state.targetPosition);
+  }
 
-    // you must call the callback function
+  /**
+   * Handle requests to set the "Target Position" characteristic
+   */
+  handleTargetPositionSet(value, callback) {
+    this.platform.log.debug('Triggered SET TargetPosition:' + value);
+
+    // Save the state locally so we can later return it.
+    this.state.targetPosition = value;
+    // Post the new requested state to the shutter api.
+    this.platform.iFeelApi.postShutterAction(this.shutterId, value);
+
     callback(null);
   }
 
   /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   * 
-   * GET requests should return as fast as possbile. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   * 
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
+   * Handle requests to get the current value of the "Position State" characteristic
    */
-  getOn(callback: CharacteristicGetCallback) {
+  handlePositionStateGet(callback) {
+    this.platform.log.debug('Triggered GET PositionState');
 
-    // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
+    let currentValue;
+    if (this.state.currentPosition > this.state.targetPosition) {
+      // The shutter is: Decreasing.
+      currentValue = 0;
+    } else if (this.state.currentPosition < this.state.targetPosition) {
+      // The shutter is: Increasing.
+      currentValue = 1;
+    } else {
+      // The shutter is: Stopped. Both target and current possitions are the same.
+      currentValue = 2;
+    }
 
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // you must call the callback function
-    // the first argument should be null if there were no errors
-    // the second argument should be the value to return
-    callback(null, isOn);
+    callback(null, currentValue);
   }
-
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  setBrightness(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
-
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
-
-    // you must call the callback function
-    callback(null);
-  }
-
 }

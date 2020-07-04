@@ -72,7 +72,7 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
    */
   discoverDevices() {
     this.iFeelApi.getShuttersData().then(data => {
-      const devices = data.map(unitData => {
+      const devices = data.filter(unitData => unitData['type'] === 'shutter').map(unitData => {
         return {id: unitData.id, displayName: unitData.name};
       });
       
@@ -123,16 +123,5 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
         // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
     });
-
-
-    const exampleDevices = [
-      {
-        id: 4,
-        displayName: 'Clementine Shutter',
-      },
-    ];
-
-    
-
   }
 }

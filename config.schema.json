@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "iFeelShutters",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -9,7 +9,24 @@
         "title": "Name",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "default": "iFeelShutters"
+      },
+      "hubIP": {
+        "title": "The i-feel local network hub ip address.",
+        "type": "string",
+        "format": "ipv4",
+        "required": true
+      },
+      "email": {
+        "title": "Email used to log in your i-feel account",
+        "type": "string",
+        "format": "email",
+        "required": true
+      },
+      "password": {
+        "title": "Your i-feel account password",
+        "type": "string",
+        "required": true
       }
     }
   }

@@ -10,6 +10,7 @@ import { IFeelPlatform } from './platform';
 export class IFeelShutter {
   private service: Service;
   private updateTargetPositionTimeout: NodeJS.Timeout | null = null;
+  private readonly maxTimeoutTime: number;
 
   // Shutter state object.
   private state = {
@@ -61,6 +62,12 @@ export class IFeelShutter {
       this.state.currentPosition = position;
       this.state.targetPosition = position;
     });
+
+    // Get the maxTimeoutTime and make sure it is initialized with a default value.
+    this.maxTimeoutTime = parseInt(this.platform.config['maxTimeoutTime']);
+    if (!this.maxTimeoutTime) {
+      this.maxTimeoutTime = 32;
+    }
   }
 
   calculateCurrentPositionState(): number {

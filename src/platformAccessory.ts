@@ -123,7 +123,7 @@ export class IFeelShutter {
         this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
         this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
       });
-    }, 1000 * 30);
+    }, 1000 * parseInt(this.platform.config['maxTimeoutTime']));
 
     callback(null);
   }

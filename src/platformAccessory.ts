@@ -66,7 +66,7 @@ export class IFeelShutter {
     // Get the maxTimeoutTime and make sure it is initialized with a default value.
     this.maxTimeoutTime = parseInt(this.platform.config['maxTimeoutTime']);
     if (!this.maxTimeoutTime) {
-      this.maxTimeoutTime = 32;
+      this.maxTimeoutTime = 40;
     }
   }
 
@@ -119,7 +119,7 @@ export class IFeelShutter {
       clearTimeout(this.updateTargetPositionTimeout);
     }
 
-    // Update the target position (and current if we're at it) in 30 seconds so we can better set the position state later.
+    // Update the target position (and current if we're at it) in x seconds so we can better set the position state later.
     this.updateTargetPositionTimeout = setTimeout(() => {
       this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
         this.platform.log.info('Updating current and target positions after handleTargetPositionSet with timeout.');
@@ -130,7 +130,7 @@ export class IFeelShutter {
         this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
         this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
       });
-    }, 1000 * parseInt(this.platform.config['maxTimeoutTime']));
+    }, 1000 * this.maxTimeoutTime);
 
     callback(null);
   }

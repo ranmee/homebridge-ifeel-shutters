@@ -31,7 +31,7 @@
       "maxTimeoutTime": {
         "title": "Maximum time (in seconds) it takes your slowest shutter to open/close",
         "type": "integer",
-        "default": 32,
+        "default": 40,
         "minimum": 1,
         "maximum": 120,
         "required": true

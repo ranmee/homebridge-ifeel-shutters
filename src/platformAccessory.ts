@@ -119,9 +119,8 @@ export class IFeelShutter {
         this.state.currentPosition = position;
         this.state.targetPosition = position;
 
-        // Update all characteristics now that we're all done.
+        // Update current position and position state characteristics now that we're all done.
         this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
-        this.service.setCharacteristic(this.platform.Characteristic.TargetPosition, this.state.targetPosition);
         this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
       });
     }, 1000 * 30);

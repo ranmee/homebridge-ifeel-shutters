@@ -9,13 +9,14 @@ import { IFeelPlatform } from './platform';
  */
 export class IFeelShutter {
   private service: Service;
+  private updateTargetPositionTimeout: NodeJS.Timeout | null = null;
 
   // Shutter state object.
   private state = {
     targetPosition: 0,
     currentPosition: 0,
   }
-
+  
   constructor(
     private readonly platform: IFeelPlatform,
     private readonly accessory: PlatformAccessory,
@@ -30,7 +31,8 @@ export class IFeelShutter {
 
     // get the WindowCovering service if it exists, otherwise create a new LightBulb service
     // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.WindowCovering) || this.accessory.addService(this.platform.Service.WindowCovering);
+    this.service = this.accessory.getService(this.platform.Service.WindowCovering) || 
+                    this.accessory.addService(this.platform.Service.WindowCovering);
 
     // To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
     // when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
@@ -53,6 +55,25 @@ export class IFeelShutter {
 
     this.service.getCharacteristic(this.platform.Characteristic.PositionState)
       .on('get', this.handlePositionStateGet.bind(this));
+
+    // Initialize the current position and target position of the shutter.
+    this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+      this.state.currentPosition = position;
+      this.state.targetPosition = position;
+    });
+  }
+
+  calculateCurrentPositionState(): number {
+    if (this.state.currentPosition > this.state.targetPosition) {
+      // The shutter is: Decreasing.
+      return this.platform.Characteristic.PositionState.DECREASING;
+    } else if (this.state.currentPosition < this.state.targetPosition) {
+      // The shutter is: Increasing.
+      return this.platform.Characteristic.PositionState.INCREASING;
+    } 
+
+    // The shutter is: Stopped. Both target and current possitions are the same.
+    return this.platform.Characteristic.PositionState.STOPPED;
   }
 
   /**
@@ -86,6 +107,23 @@ export class IFeelShutter {
     // Post the new requested state to the shutter api.
     this.platform.iFeelApi.postShutterAction(this.shutterId, value);
 
+    // Make sure we're not scheduled to update target position already, and if we are cancel it.
+    if (this.updateTargetPositionTimeout) {
+      clearTimeout(this.updateTargetPositionTimeout);
+    }
+
+    // Update the target position (and current if we're at it) in 40 seconds so we can better set the position state later.
+    this.updateTargetPositionTimeout = setTimeout(() => {
+      this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+        this.platform.log.info('Updating current and target positions after handleTargetPositionSet with timeout.');
+        this.state.currentPosition = position;
+        this.state.targetPosition = position;
+
+        // Update the position state now that we're all done.
+        this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
+      });
+    }, 1000 * 40);
+
     callback(null);
   }
 
@@ -97,20 +135,7 @@ export class IFeelShutter {
 
     this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
       this.state.currentPosition = position;
-      
-      let currentValue;
-      if (this.state.currentPosition > this.state.targetPosition) {
-        // The shutter is: Decreasing.
-        currentValue = 0;
-      } else if (this.state.currentPosition < this.state.targetPosition) {
-        // The shutter is: Increasing.
-        currentValue = 1;
-      } else {
-        // The shutter is: Stopped. Both target and current possitions are the same.
-        currentValue = 2;
-      }
-
-      callback(null, currentValue);
+      callback(null, this.calculateCurrentPositionState());
     });
   }
 }

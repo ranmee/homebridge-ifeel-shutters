@@ -112,17 +112,19 @@ export class IFeelShutter {
       clearTimeout(this.updateTargetPositionTimeout);
     }
 
-    // Update the target position (and current if we're at it) in 40 seconds so we can better set the position state later.
+    // Update the target position (and current if we're at it) in 30 seconds so we can better set the position state later.
     this.updateTargetPositionTimeout = setTimeout(() => {
       this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
         this.platform.log.info('Updating current and target positions after handleTargetPositionSet with timeout.');
         this.state.currentPosition = position;
         this.state.targetPosition = position;
 
-        // Update the position state now that we're all done.
+        // Update all characteristics now that we're all done.
+        this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
+        this.service.setCharacteristic(this.platform.Characteristic.TargetPosition, this.state.targetPosition);
         this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
       });
-    }, 1000 * 40);
+    }, 1000 * 30);
 
     callback(null);
   }

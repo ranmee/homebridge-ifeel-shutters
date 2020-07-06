@@ -36,7 +36,7 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
     this.email = config['email'];
     this.password = config['password'];
     // Get the polling interval from the configuration or set a default value of 2 seconds.
-    this.pollingInterval = config['pollingInterval'] ? parseInt(config['pollingInterval']) * 1000 : 2000;
+    this.pollingInterval = config['pollingInterval'] ? parseInt(config['pollingInterval']) * 1000 : 2500;
     // Set a maximum polling time for a shutter (so we won't poll it forever).
     this.maxPollingTime = 1000 * 60;
     this.iFeelApi = new IFeelAPI(this.hubIP, this.email, this.password, this.log);

@@ -28,12 +28,12 @@
         "type": "string",
         "required": true
       },
-      "maxTimeoutTime": {
-        "title": "Maximum time (in seconds) it takes your slowest shutter to open/close",
+      "pollingInterval": {
+        "title": "The interval (in seconds) to poll the shutter for position after change",
         "type": "integer",
-        "default": 40,
+        "default": 2,
         "minimum": 1,
-        "maximum": 120,
+        "maximum": 10,
         "required": true
       }
     }

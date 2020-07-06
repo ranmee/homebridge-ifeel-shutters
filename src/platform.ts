@@ -17,6 +17,8 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
   private readonly password: string;
   private readonly authenticationInterval: number = 1000 * 60 * 25;
   
+  public readonly pollingInterval: number;
+  public readonly maxPollingTime: number;
   
   // this is used to track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
@@ -33,6 +35,10 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
     this.hubIP = config['hubIP'];
     this.email = config['email'];
     this.password = config['password'];
+    // Get the polling interval from the configuration or set a default value of 2 seconds.
+    this.pollingInterval = config['pollingInterval'] ? parseInt(config['pollingInterval']) * 1000 : 2000;
+    // Set a maximum polling time for a shutter (so we won't poll it forever).
+    this.maxPollingTime = 1000 * 60;
     this.iFeelApi = new IFeelAPI(this.hubIP, this.email, this.password, this.log);
 
     // When this event is fired it means Homebridge has restored all cached accessories from disk.

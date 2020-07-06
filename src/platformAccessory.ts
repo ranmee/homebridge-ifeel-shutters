@@ -9,8 +9,8 @@ import { IFeelPlatform } from './platform';
  */
 export class IFeelShutter {
   private service: Service;
-  private updateTargetPositionTimeout: NodeJS.Timeout | null = null;
-  private readonly maxTimeoutTime: number;
+  private updateTargetInterval: NodeJS.Timeout | undefined;
+  private intervalDurationSum = 0;
 
   // Shutter state object.
   private state = {
@@ -62,12 +62,6 @@ export class IFeelShutter {
       this.state.currentPosition = position;
       this.state.targetPosition = position;
     });
-
-    // Get the maxTimeoutTime and make sure it is initialized with a default value.
-    this.maxTimeoutTime = parseInt(this.platform.config['maxTimeoutTime']);
-    if (!this.maxTimeoutTime) {
-      this.maxTimeoutTime = 40;
-    }
   }
 
   calculateCurrentPositionState(): number {
@@ -81,6 +75,12 @@ export class IFeelShutter {
 
     // The shutter is: Stopped. Both target and current possitions are the same.
     return this.platform.Characteristic.PositionState.STOPPED;
+  }
+
+  clearIntervalSafe(interval: NodeJS.Timeout | undefined) {
+    if (interval) {
+      clearInterval(interval);
+    }
   }
 
   /**
@@ -114,23 +114,34 @@ export class IFeelShutter {
     // Post the new requested state to the shutter api.
     this.platform.iFeelApi.postShutterAction(this.shutterId, value);
 
-    // Make sure we're not scheduled to update target position already, and if we are cancel it.
-    if (this.updateTargetPositionTimeout) {
-      clearTimeout(this.updateTargetPositionTimeout);
-    }
+    // Make sure we're not currently polling, and if we are cancel it. And clear the intervalDurationSum.
+    this.intervalDurationSum = 0;
+    this.clearIntervalSafe(this.updateTargetInterval);
 
-    // Update the target position (and current if we're at it) in x seconds so we can better set the position state later.
-    this.updateTargetPositionTimeout = setTimeout(() => {
+    this.updateTargetInterval = setInterval(() => {
       this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+        this.intervalDurationSum += this.platform.pollingInterval;
+        
         this.platform.log.info('Updating current and target positions after handleTargetPositionSet with timeout.');
         this.state.currentPosition = position;
-        this.state.targetPosition = position;
-
-        // Update current position and position state characteristics now that we're all done.
+        
+        // Update current position and position state characteristics now that we have updated data.
         this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
         this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
+        
+        // If we've reached the maximum polling time, stop.
+        if (this.intervalDurationSum >= this.platform.maxPollingTime) {
+          this.platform.log.info(`Stoping polling shutter ${this.shutterId} after max polling time was reached.`);
+          this.clearIntervalSafe(this.updateTargetInterval);
+        }
+
+        // If the current position matches the target position, we're done.
+        if (this.state.currentPosition === this.state.targetPosition) {
+          this.clearIntervalSafe(this.updateTargetInterval);
+        }
+
       });
-    }, 1000 * this.maxTimeoutTime);
+    }, this.platform.pollingInterval);
 
     callback(null);
   }

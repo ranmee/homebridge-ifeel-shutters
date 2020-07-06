@@ -121,8 +121,6 @@ export class IFeelShutter {
     this.updateTargetInterval = setInterval(() => {
       this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
         this.intervalDurationSum += this.platform.pollingInterval;
-        
-        this.platform.log.info('Updating current and target positions after handleTargetPositionSet with timeout.');
         this.state.currentPosition = position;
         
         // Update current position and position state characteristics now that we have updated data.

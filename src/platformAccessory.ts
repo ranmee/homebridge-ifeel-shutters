@@ -9,7 +9,7 @@ import { IFeelPlatform } from './platform';
  */
 export class IFeelShutter {
   private service: Service;
-  private updateTargetInterval: NodeJS.Timeout | undefined;
+  private updateTargetInterval: NodeJS.Timeout | null | undefined;
   private intervalDurationSum = 0;
 
   // Shutter state object.
@@ -77,9 +77,11 @@ export class IFeelShutter {
     return this.platform.Characteristic.PositionState.STOPPED;
   }
 
-  clearIntervalSafe(interval: NodeJS.Timeout | undefined) {
+  clearIntervalSafe(interval: NodeJS.Timeout | null | undefined) {
     if (interval) {
       clearInterval(interval);
+      // Also really clear the interval parameter so we can later know that we're not running.
+      interval = null;
     }
   }
 
@@ -91,6 +93,14 @@ export class IFeelShutter {
 
     this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
       this.state.currentPosition = position;
+
+      // If we're not currently polling, and the current position doesn't match the target position, this means a change happened outside
+      // the Home app (maybe the person changed the shutter by clicking the physical button).
+      // In this case, we should set the target position to be the current position.
+      if (!this.updateTargetInterval && this.state.currentPosition !== this.state.targetPosition) {
+        this.service.setCharacteristic(this.platform.Characteristic.TargetPosition, this.state.currentPosition);
+      }
+
       callback(null, position);
     });
   }
@@ -129,7 +139,7 @@ export class IFeelShutter {
         
         // If we've reached the maximum polling time, stop.
         if (this.intervalDurationSum >= this.platform.maxPollingTime) {
-          this.platform.log.info(`Stoping polling shutter ${this.shutterId} after max polling time was reached.`);
+          this.platform.log.info(`Stopping polling shutter ${this.shutterId} after max polling time was reached.`);
           this.clearIntervalSafe(this.updateTargetInterval);
         }
 

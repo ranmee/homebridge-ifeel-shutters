@@ -77,11 +77,11 @@ export class IFeelShutter {
     return this.platform.Characteristic.PositionState.STOPPED;
   }
 
-  clearIntervalSafe(interval: NodeJS.Timeout | null | undefined) {
-    if (interval) {
-      clearInterval(interval);
+  clearIntervalSafe() {
+    if (this.updateTargetInterval) {
+      clearInterval(this.updateTargetInterval);
       // Also really clear the interval parameter so we can later know that we're not running.
-      interval = null;
+      this.updateTargetInterval = null;
     }
   }
 
@@ -98,7 +98,9 @@ export class IFeelShutter {
       // the Home app (maybe the person changed the shutter by clicking the physical button).
       // In this case, we should set the target position to be the current position.
       if (!this.updateTargetInterval && this.state.currentPosition !== this.state.targetPosition) {
-        this.service.setCharacteristic(this.platform.Characteristic.TargetPosition, this.state.currentPosition);
+        this.state.targetPosition = position;
+        this.service.updateCharacteristic(this.platform.Characteristic.TargetPosition, position);
+        this.service.updateCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
       }
 
       callback(null, position);
@@ -110,7 +112,22 @@ export class IFeelShutter {
    */
   handleTargetPositionGet(callback) {
     this.platform.log.debug('Triggered GET TargetPosition');
-    callback(null, this.state.targetPosition);
+
+    // We do a call to get the current position, so we can check if we're in sync.
+    this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
+      this.state.currentPosition = position;
+      this.service.updateCharacteristic(this.platform.Characteristic.CurrentPosition, position);
+
+      // If we're not currently polling, and the current position doesn't match the target position, this means a change happened outside
+      // the Home app (maybe the person changed the shutter by clicking the physical button).
+      // In this case, we should set the target position to be the current position.
+      if (!this.updateTargetInterval && this.state.currentPosition !== this.state.targetPosition) {
+        this.state.targetPosition = position;
+        this.service.updateCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
+      }
+
+      callback(null, this.state.targetPosition);
+    });
   }
 
   /**
@@ -126,7 +143,7 @@ export class IFeelShutter {
 
     // Make sure we're not currently polling, and if we are cancel it. And clear the intervalDurationSum.
     this.intervalDurationSum = 0;
-    this.clearIntervalSafe(this.updateTargetInterval);
+    this.clearIntervalSafe();
 
     this.updateTargetInterval = setInterval(() => {
       this.platform.iFeelApi.getShutterPosition(this.shutterId).then((position: number) => {
@@ -134,18 +151,18 @@ export class IFeelShutter {
         this.state.currentPosition = position;
         
         // Update current position and position state characteristics now that we have updated data.
-        this.service.setCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
-        this.service.setCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
+        this.service.updateCharacteristic(this.platform.Characteristic.CurrentPosition, this.state.currentPosition);
+        this.service.updateCharacteristic(this.platform.Characteristic.PositionState, this.calculateCurrentPositionState());
         
         // If we've reached the maximum polling time, stop.
         if (this.intervalDurationSum >= this.platform.maxPollingTime) {
           this.platform.log.info(`Stopping polling shutter ${this.shutterId} after max polling time was reached.`);
-          this.clearIntervalSafe(this.updateTargetInterval);
+          this.clearIntervalSafe();
         }
 
         // If the current position matches the target position, we're done.
         if (this.state.currentPosition === this.state.targetPosition) {
-          this.clearIntervalSafe(this.updateTargetInterval);
+          this.clearIntervalSafe();
         }
 
       });

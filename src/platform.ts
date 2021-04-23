@@ -15,7 +15,7 @@ export class IFeelPlatform implements DynamicPlatformPlugin {
   private readonly hubIP: string;
   private readonly email: string;
   private readonly password: string;
-  private readonly authenticationInterval: number = 1000 * 60 * 25;
+  private readonly authenticationInterval: number = 1000 * 60 * 10;
   
   public readonly pollingInterval: number;
   public readonly maxPollingTime: number;

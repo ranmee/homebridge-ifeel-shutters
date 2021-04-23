@@ -58,7 +58,7 @@ export class IFeelAPI {
     const response = await this.api.get('auth/login', this.getRequestConfig(params));
     
     // The cookie will identify us for the next ~30 minutes.
-    this.logger.info('Succefully authenticated with i-feel hub.');
+    this.logger.info('Successfully authenticated with i-feel hub.');
     this.sessionCookie = response.headers['set-cookie'];
   }
 
